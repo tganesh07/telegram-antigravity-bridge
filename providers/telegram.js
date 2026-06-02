@@ -77,14 +77,65 @@ class TelegramProvider {
    * @param {string} text 
    * @param {Object} options 
    */
+  /**
+   * Send message back to a chat, with automatic chunking if the message exceeds Telegram length limits
+   * @param {string} chatId 
+   * @param {string} text 
+   * @param {Object} options 
+   */
   async sendMessage(chatId, text, options = {}) {
     if (!this.bot) {
       throw new Error('Telegram Bot is not initialized.');
     }
 
+    const MAX_LENGTH = 4000; // Telegram limit is 4096
+    
+    if (text.length <= MAX_LENGTH) {
+      return await this._sendSingleMessage(chatId, text, options);
+    }
+
+    console.log(`Message exceeds Telegram limit (${text.length} chars). Splitting into chunks...`);
+    const chunks = [];
+    let remaining = text;
+
+    while (remaining.length > 0) {
+      if (remaining.length <= MAX_LENGTH) {
+        chunks.push(remaining);
+        break;
+      }
+
+      // Find a clean newline to split on
+      let cutIndex = remaining.lastIndexOf('\n', MAX_LENGTH);
+      if (cutIndex === -1 || cutIndex < MAX_LENGTH * 0.7) {
+        // Fallback: split by space
+        cutIndex = remaining.lastIndexOf(' ', MAX_LENGTH);
+      }
+      if (cutIndex === -1 || cutIndex < MAX_LENGTH * 0.5) {
+        // Hard cut if no spaces/newlines
+        cutIndex = MAX_LENGTH;
+      }
+
+      chunks.push(remaining.substring(0, cutIndex));
+      remaining = remaining.substring(cutIndex).trim();
+    }
+
+    let lastResult = null;
+    for (let i = 0; i < chunks.length; i++) {
+      const partPrefix = chunks.length > 1 ? `📝 _[Part ${i + 1}/${chunks.length}]_\n\n` : '';
+      lastResult = await this._sendSingleMessage(chatId, partPrefix + chunks[i], options);
+      // Wait slightly to ensure Telegram receives and displays them in order
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    return lastResult;
+  }
+
+  /**
+   * Helper to deliver a single un-chunked message
+   */
+  async _sendSingleMessage(chatId, text, options = {}) {
     try {
       // Try sending with Markdown formatting
-      await this.bot.telegram.sendMessage(chatId, text, {
+      return await this.bot.telegram.sendMessage(chatId, text, {
         parse_mode: 'Markdown',
         ...options
       });
@@ -92,9 +143,10 @@ class TelegramProvider {
       console.warn('Markdown sending failed, falling back to plain text. Error:', err.message);
       try {
         // Fallback to sending as unformatted plain text
-        await this.bot.telegram.sendMessage(chatId, text, options);
+        return await this.bot.telegram.sendMessage(chatId, text, options);
       } catch (err2) {
         console.error('Critical: Failed to send Telegram message:', err2);
+        throw err2;
       }
     }
   }

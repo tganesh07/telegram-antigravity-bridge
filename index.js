@@ -202,11 +202,20 @@ function monitorTranscript(chatId, conversationId, lastStepIndex) {
         let finalResponse = step.content || '';
         
         // Clean and format response
-        if (finalResponse.trim()) {
-          // Send response back
-          await provider.sendMessage(chatId, `🤖 *Antigravity response:*\n\n${finalResponse}`);
-        } else {
-          await provider.sendMessage(chatId, '🤖 Antigravity completed its turn but returned an empty response.');
+        try {
+          if (finalResponse.trim()) {
+            // Send response back
+            await provider.sendMessage(chatId, `🤖 *Antigravity response:*\n\n${finalResponse}`);
+          } else {
+            await provider.sendMessage(chatId, '🤖 Antigravity completed its turn but returned an empty response.');
+          }
+        } catch (err) {
+          console.error('Failed to deliver final message:', err.message);
+          try {
+            await provider.sendMessage(chatId, `❌ Failed to deliver final response: ${err.message}`);
+          } catch (err2) {
+            console.error('Failed to deliver error message:', err2.message);
+          }
         }
         return;
       }
