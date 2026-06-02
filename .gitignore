@@ -1,0 +1,11 @@
+# Dependency directory
+node_modules/
+
+# Local credentials (contains Bot Token and Chat ID)
+.env
+
+# Dynamic/persistent session configurations
+config.json
+
+# Local daemon logs
+*.log
