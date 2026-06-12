@@ -6,6 +6,7 @@ node_modules/
 
 # Dynamic/persistent session configurations
 config.json
+names.json
 
 # Local daemon logs
 *.log
