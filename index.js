@@ -312,8 +312,10 @@ provider.onMessage(async (chatId, text) => {
 
       case '/status':
         if (config.activeConversationId) {
+          const desc = getConversationDescription(config.activeConversationId);
           await provider.sendMessage(chatId, 
             `🟢 *Bridge Status:* ACTIVE\n` +
+            `• *Active Name:* *${desc}*\n` +
             `• *Active ID:* \`${config.activeConversationId}\`\n` +
             `• *Configured Model:* \`${config.model}\` (Performance tier)`
           );
