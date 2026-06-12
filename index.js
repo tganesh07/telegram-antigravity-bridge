@@ -165,6 +165,42 @@ function getTranscriptLines(conversationId) {
 }
 
 /**
+ * Dynamically extract a short user-friendly description of the conversation from step index 0
+ * @param {string} conversationId 
+ * @returns {string}
+ */
+function getConversationDescription(conversationId) {
+  const transcriptPath = path.join(BRAIN_DIR, conversationId, '.system_generated', 'logs', 'transcript.jsonl');
+  if (!fs.existsSync(transcriptPath)) {
+    return 'Untitled Conversation';
+  }
+  try {
+    const fileContent = fs.readFileSync(transcriptPath, 'utf8');
+    const firstLine = fileContent.split('\n').find(line => line.trim());
+    if (!firstLine) return 'Untitled Conversation';
+    
+    const step = JSON.parse(firstLine);
+    if (step.step_index === 0 && step.content) {
+      // Clean tags like <USER_REQUEST>
+      let cleanText = step.content
+        .replace(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/gi, '$1')
+        .replace(/<ADDITIONAL_METADATA>[\s\S]*?<\/ADDITIONAL_METADATA>/gi, '')
+        .trim();
+      
+      // Get the first line of the prompt
+      cleanText = cleanText.split('\n')[0].trim();
+      if (cleanText.length > 55) {
+        cleanText = cleanText.substring(0, 52) + '...';
+      }
+      return cleanText || 'Untitled Conversation';
+    }
+  } catch (err) {
+    // Fail silently, return fallback
+  }
+  return 'Untitled Conversation';
+}
+
+/**
  * Watches the conversation transcript in real-time and updates the user
  */
 function monitorTranscript(chatId, conversationId, lastStepIndex) {
@@ -348,11 +384,12 @@ provider.onMessage(async (chatId, text) => {
 
           let responseText = `📁 *Past Conversations (${files.length}):*\n\n`;
           files.slice(-10).forEach((id, idx) => {
-            responseText += `${idx + 1}. \`${id}\`\n`;
+            const desc = getConversationDescription(id);
+            responseText += `${idx + 1}. 📝 *${desc}*\n   • ID: \`${id}\`\n\n`;
           });
           
           if (files.length > 10) {
-            responseText += `\n_(Showing last 10 conversations)_`;
+            responseText += `_(Showing last 10 conversations)_`;
           }
 
           await provider.sendMessage(chatId, responseText);
