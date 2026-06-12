@@ -199,16 +199,64 @@ function getConversationDescription(conversationId) {
     
     const step = JSON.parse(firstLine);
     if (step.step_index === 0 && step.content) {
-      // Clean tags like <USER_REQUEST>
+      // Clean tags like <USER_REQUEST>, replace all whitespace/newlines with a single space
       let cleanText = step.content
         .replace(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/gi, '$1')
         .replace(/<ADDITIONAL_METADATA>[\s\S]*?<\/ADDITIONAL_METADATA>/gi, '')
+        .replace(/\s+/g, ' ')
         .trim();
       
-      // Get the first line of the prompt
-      cleanText = cleanText.split('\n')[0].trim();
+      const conversationalPrefixes = [
+        /^(?:let's\s+put\s+this\s+idea\s+on\s+hold\s+and\s+)?i\s+would\s+like\s+to\s+understand\s+more\s+about\s+(?:the\s+)?/i,
+        /^(?:let's\s+put\s+this\s+idea\s+on\s+hold\s+and\s+)?i\s+would\s+like\s+to\s+/i,
+        /^i\s+want\s+to\s+build\s+a\s+mobile\s+app\s+using\s+which\s+users\s+can\s+/i,
+        /^i\s+want\s+to\s+build\s+a\s+/i,
+        /^i\s+want\s+to\s+create\s+a\s+/i,
+        /^i\s+want\s+to\s+make\s+a\s+/i,
+        /^i\s+want\s+to\s+/i,
+        /^i\s+would\s+like\s+to\s+build\s+a\s+solution\s+where\s+i\s+should\s+be\s+able\s+to\s+/i,
+        /^i\s+would\s+like\s+to\s+build\s+a\s+solution\s+where\s+i\s+should\s+be\s+/i,
+        /^i\s+would\s+like\s+to\s+build\s+a\s+solution\s+where\s+i\s+/i,
+        /^i\s+would\s+like\s+to\s+build\s+a\s+/i,
+        /^please\s+build\s+a\s+/i,
+        /^please\s+create\s+a\s+/i,
+        /^please\s+write\s+a\s+/i,
+        /^can\s+you\s+build\s+a\s+/i,
+        /^can\s+you\s+create\s+a\s+/i,
+        /^can\s+you\s+/i,
+        /^build\s+a\s+/i,
+        /^create\s+a\s+/i,
+        /^make\s+a\s+/i,
+        /^write\s+a\s+/i,
+        /^let's\s+build\s+a\s+/i,
+        /^let's\s+create\s+a\s+/i,
+        /^let's\s+/i,
+        /^we\s+need\s+to\s+/i
+      ];
+
+      let matched = true;
+      while (matched) {
+        matched = false;
+        for (const prefix of conversationalPrefixes) {
+          if (prefix.test(cleanText)) {
+            cleanText = cleanText.replace(prefix, '').trim();
+            matched = true;
+            break;
+          }
+        }
+      }
+
+      if (cleanText.length > 0) {
+        cleanText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
+      }
+
       if (cleanText.length > 55) {
-        cleanText = cleanText.substring(0, 52) + '...';
+        const cutPos = cleanText.lastIndexOf(' ', 55);
+        if (cutPos > 30) {
+          cleanText = cleanText.substring(0, cutPos) + '...';
+        } else {
+          cleanText = cleanText.substring(0, 52) + '...';
+        }
       }
       return cleanText || 'Untitled Conversation';
     }
