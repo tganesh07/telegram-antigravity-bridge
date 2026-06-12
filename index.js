@@ -7,6 +7,7 @@ const AGENT_API = '/Applications/Antigravity.app/Contents/Resources/bin/language
 const CONVERSATIONS_DIR = '/Users/thulsz/.gemini/antigravity/conversations';
 const BRAIN_DIR = '/Users/thulsz/.gemini/antigravity/brain';
 const CONFIG_PATH = path.join(__dirname, 'config.json');
+const NAMES_PATH = path.join(__dirname, 'names.json');
 
 // Ensure persistent config state
 let config = {
@@ -26,6 +27,20 @@ if (fs.existsSync(CONFIG_PATH)) {
 
 function saveConfig() {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+}
+
+// Ensure persistent custom conversation names mapping
+let conversationNames = {};
+if (fs.existsSync(NAMES_PATH)) {
+  try {
+    conversationNames = JSON.parse(fs.readFileSync(NAMES_PATH, 'utf8'));
+  } catch (err) {
+    console.error('Failed to parse names.json:', err.message);
+  }
+}
+
+function saveNames() {
+  fs.writeFileSync(NAMES_PATH, JSON.stringify(conversationNames, null, 2), 'utf8');
 }
 
 /**
@@ -170,6 +185,9 @@ function getTranscriptLines(conversationId) {
  * @returns {string}
  */
 function getConversationDescription(conversationId) {
+  if (conversationNames[conversationId]) {
+    return conversationNames[conversationId];
+  }
   const transcriptPath = path.join(BRAIN_DIR, conversationId, '.system_generated', 'logs', 'transcript.jsonl');
   if (!fs.existsSync(transcriptPath)) {
     return 'Untitled Conversation';
@@ -284,6 +302,7 @@ provider.onMessage(async (chatId, text) => {
           `• \`/status\` - Show active conversation and model configuration\n` +
           `• \`/list\` - List all local conversations\n` +
           `• \`/resume <id>\` - Resume a past conversation by ID\n` +
+          `• \`/rename <new_name>\` - Rename the currently active conversation\n` +
           `• \`/explain\` - View a clean summary of steps executed in the last turn\n` +
           `• \`/stop\` - Disconnect the active conversation\n\n` +
           `*Usage:*\n` +
@@ -314,6 +333,7 @@ provider.onMessage(async (chatId, text) => {
           config.model = tier;
           saveConfig();
           await provider.sendMessage(chatId, `✅ Model performance successfully set to: \`${tier}\` for future runs.`);
+        } else {
           await provider.sendMessage(chatId, `❌ Invalid tier. Choose from: \`pro\`, \`flash\`, \`flash_lite\`.`);
         }
         break;
@@ -469,6 +489,21 @@ provider.onMessage(async (chatId, text) => {
         } catch (err) {
           await provider.sendMessage(chatId, `❌ Error compiling explanation: ${err.message}`);
         }
+        break;
+
+      case '/rename':
+        if (!config.activeConversationId) {
+          await provider.sendMessage(chatId, `⚠️ No active conversation. Start one using \`/new <your prompt>\` or resume using \`/resume <id>\` first.`);
+          return;
+        }
+        if (!arg) {
+          await provider.sendMessage(chatId, `❌ Please specify the new name. E.g., \`/rename My Awesome Project\``);
+          return;
+        }
+
+        conversationNames[config.activeConversationId] = arg;
+        saveNames();
+        await provider.sendMessage(chatId, `✅ Active conversation successfully renamed to:\n*${arg}*`);
         break;
 
       case '/stop':
